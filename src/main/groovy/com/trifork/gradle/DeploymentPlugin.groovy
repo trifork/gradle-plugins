@@ -8,19 +8,17 @@ class DeploymentPlugin implements Plugin<Project> {
 
 	def void apply(Project p) {
 
-		def convention = new DeploymentPluginConvention()
-		p.convention.plugins.deployment = convention
+		// Apply the Maven plugin to the project.
 
-		if (!p.plugins.hasPlugin('maven')) {
-			p.apply plugin: 'maven'
-		}
+		p.getPlugins().apply(MavenPlugin.class);
+
+		// Add the deployment tasks.
 
 		p.task([dependsOn: 'uploadArchives'], 'deploySnapshot')
 		p.task([dependsOn: 'uploadArchives'], 'deployRelease')
 
-		// In order to deploy the artifacts we need some dependencies.
-		// The actually jars needed depend on how we are going to deploy.
-		// By default we just use HTTP to deploy.
+		// In order to deploy, we need deployer dependency.
+		// Currently we just use HTTP to deploy.
 
 		p.configurations {
 			deployerJars
@@ -43,28 +41,20 @@ class DeploymentPlugin implements Plugin<Project> {
 
 		p.uploadArchives.dependsOn p.tasks.sourcesJar
 
+		// Determine if this is a release or a snapshot.
+
 		p.gradle.taskGraph.whenReady { graph ->
-
-			// Determine if this is a release or a snapshot
-
 			if (!graph.hasTask(p.tasks.deployRelease)) p.version += '-SNAPSHOT'
-
-			p.uploadArchives {
-				repositories.mavenDeployer {
-					configuration = p.configurations.deployerJars
-					repository(id: 'trifork-releases', url: 'http://nexus.ci81.trifork.com/content/repositories/releases/')
-					snapshotRepository(id: 'trifork-snapshots', url: 'http://nexus.ci81.trifork.com/content/repositories/snapshots/')
-				}
+		}
+		
+		// Configure the deployment destinations.
+		
+		p.uploadArchives {
+			repositories.mavenDeployer {
+				configuration = p.configurations.deployerJars
+				repository(id: 'trifork-releases', url: 'http://nexus.ci81.trifork.com/content/repositories/releases/')
+				snapshotRepository(id: 'trifork-snapshots', url: 'http://nexus.ci81.trifork.com/content/repositories/snapshots/')
 			}
 		}
-	}
-}
-
-class DeploymentPluginConvention {
-	String nextReleaseVersion
-
-	def deployment(Closure closure) {
-		closure.delegate = this
-		closure()
 	}
 }
