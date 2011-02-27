@@ -1,0 +1,54 @@
+apply plugin:'groovy'
+apply plugin:'maven'
+
+repositories {
+	mavenCentral()
+}
+
+configurations {
+	deployerJars
+}
+
+dependencies {
+	compile gradleApi()
+	testCompile 'org.testng:testng:5.14.6'
+	groovy 'org.codehaus.groovy:groovy:1.7.8'
+	deployerJars "org.apache.maven.wagon:wagon-http:1.0-beta-2"
+}
+
+task sourcesJar(type: Jar, dependsOn: compileJava) {
+	from sourceSets.main.allSource
+	classifier = 'sources'
+}
+
+artifacts {
+	archives sourcesJar
+}
+
+uploadArchives {
+		repositories.mavenDeployer {
+		configuration = configurations.deployerJars
+		repository(id: 'trifork-releases', url: 'http://nexus.ci81.trifork.com/content/repositories/releases/')
+		snapshotRepository(id: 'trifork-snapshots', url: 'http://nexus.ci81.trifork.com/content/repositories/snapshots/')
+	}
+}
+
+uploadArchives.dependsOn sourcesJar
+
+assemble.doLast( { install } )
+uploadArchives.dependsOn install
+
+task deploySnapshot(dependsOn: 'uploadArchives')
+task deployRelease(dependsOn: 'uploadArchives')
+
+gradle.taskGraph.whenReady { taskGraph ->
+	if (!taskGraph.hasTask(':deployRelease')) version += '-SNAPSHOT'
+	
+	manifest.mainAttributes(
+		provider: 'gradle',
+		'Implementation-Url': 'http://trifork.com',
+		'Implementation-Version': version,
+		'Implementation-Vendor': 'Trifork',
+		'Implementation-Vendor-Id': 'com.trifork'
+	)
+}
